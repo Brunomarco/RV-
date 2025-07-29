@@ -226,7 +226,7 @@ if tms_data is not None:
    avg_otp = (on_time_orders / total_orders * 100) if total_orders > 0 else 0
  
 # Financial metrics - use only billed orders and ignore summary rows
-if 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
+if tms_data and 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
  cost_df = tms_data['cost_sales']
  # work only with billed orders
  if 'Status' in cost_df.columns:
