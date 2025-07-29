@@ -580,199 +580,232 @@ if tms_data is not None:
   """)
   st.markdown('</div>', unsafe_allow_html=True)
  
- # TAB 4: Financial Analysis
- with tab4:
-  st.markdown('<h2 class="section-header">Financial Performance & Profitability</h2>', unsafe_allow_html=True)
-  
-  if 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
-   cost_df = tms_data['cost_sales']
-   
-   # Financial Overview with spacing
-   st.markdown('<p class="chart-title">Overall Financial Health</p>', unsafe_allow_html=True)
-   
-   col1, col2, col3 = st.columns([1, 1, 1])
-   
-   with col1:
-    st.markdown("**Revenue vs Cost Analysis**")
-    st.markdown("<small>Shows total income, expenses, and resulting profit</small>", unsafe_allow_html=True)
-    
-    profit = diff_total
-    financial_data = pd.DataFrame({
-     'Category': ['Revenue', 'Cost', 'Profit'],
-     'Amount': [total_revenue, total_cost, profit]
-    })
-    
-    fig = px.bar(financial_data, x='Category', y='Amount',
-                color='Category',
-                color_discrete_map={'Revenue': '#2ca02c', 
-                                  'Cost': '#ff7f0e',
-                                  'Profit': '#2ca02c' if profit >= 0 else '#d62728'},
-                title='')
-    fig.update_layout(showlegend=False, height=350)
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Financial summary
-    st.write(f"**Profit Margin**: {profit_margin:.1f}%")
-    st.write(f"**Profit per shipment**: €{profit/total_services:.2f}")
-   
-   with col2:
-    st.markdown("**Where Money Goes - Cost Breakdown**")
-    st.markdown("<small>Understanding our expense structure</small>", unsafe_allow_html=True)
-    
-    cost_components = {}
-    cost_cols = ['PU_Cost', 'Ship_Cost', 'Man_Cost', 'Del_Cost']
-    for col in cost_cols:
-     if col in cost_df.columns:
-      cost_sum = cost_df[col].sum()
-      if cost_sum > 0:
-       cost_components[col.replace('_Cost', '')] = cost_sum
-    
-    if cost_components:
-     # Add percentages to labels
-     total_costs = sum(cost_components.values())
-     labels = [f"{k}<br>{v/total_costs*100:.1f}%" for k, v in cost_components.items()]
-     
-     fig = px.pie(values=list(cost_components.values()), 
-                names=labels,
-                title='')
-     fig.update_traces(textposition='inside', textinfo='value+label')
-     fig.update_layout(height=350, showlegend=False)
-     st.plotly_chart(fig, use_container_width=True)
-    
-    # Cost insights
-    if cost_components:
-     largest_cost = max(cost_components, key=cost_components.get)
-     st.write(f"**Biggest expense**: {largest_cost} ({cost_components[largest_cost]/total_costs*100:.1f}%)")
-   
-   with col3:
-    st.markdown("**Profit Margin Distribution**")
-    st.markdown("<small>How profitable are individual shipments?</small>", unsafe_allow_html=True)
-    
-    if 'Gross_Percent' in cost_df.columns:
-     margin_data = cost_df['Gross_Percent'].dropna() * 100
-     
-     # Calculate margin statistics
-     profitable_orders = len(margin_data[margin_data > 0])
-     high_margin_orders = len(margin_data[margin_data >= 20])
-     
-     fig = px.histogram(
-      margin_data,
-      nbins=30,
-      title='',
-      labels={'value': 'Margin %', 'count': 'Number of Orders'}
-     )
-     fig.add_vline(x=20, line_dash="dash", line_color="green", annotation_text="Target 20%")
-     fig.update_traces(marker_color='lightcoral')
-     fig.update_layout(height=350)
-     st.plotly_chart(fig, use_container_width=True)
+with tab4:
+    st.markdown('<h2 class="section-header">Financial Performance & Profitability</h2>', unsafe_allow_html=True)
 
-     # Additional view of margin distribution
-     box_fig = px.box(margin_data, orientation='h', labels={'value': 'Margin %'})
-     box_fig.update_layout(height=200, showlegend=False, title='')
-     st.plotly_chart(box_fig, use_container_width=True)
-    
-     # Margin insights
-     st.write(f"**Profitable orders**: {profitable_orders/len(margin_data)*100:.1f}%")
-     st.write(f"**High margin (>20%)**: {high_margin_orders/len(margin_data)*100:.1f}%")
-   
-   # Add spacing
-   st.markdown("<br>", unsafe_allow_html=True)
-   
-   # Country Financial Performance - FIXED to only show countries with financial data
-   if 'PU_Country' in cost_df.columns:
-    st.markdown('<p class="chart-title">Country-by-Country Financial Performance</p>', unsafe_allow_html=True)
-    
-    # Only aggregate countries that have financial data
-    country_financials = cost_df.groupby('PU_Country').agg({
-     'Net_Revenue': 'sum',
-     'Total_Cost': 'sum',
-     'Gross_Percent': 'mean'
-    }).round(2)
-    
-    country_financials['Profit'] = country_financials['Net_Revenue'] - country_financials['Total_Cost']
-    country_financials['Margin_Percent'] = (country_financials['Gross_Percent'] * 100).round(1)
-    
-    # Sort by revenue
-    country_financials = country_financials.sort_values('Net_Revenue', ascending=False)
-    
-    # Create subplots with better spacing
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-     st.markdown("**Revenue by Country**")
-     st.markdown("<small>Which markets generate most income?</small>", unsafe_allow_html=True)
-     
-     revenue_data = country_financials.reset_index()
-     revenue_data = revenue_data[revenue_data['Net_Revenue'] > 0]
-     
-     fig = px.bar(revenue_data, x='PU_Country', y='Net_Revenue',
-                title='',
-                color='Net_Revenue',
-                color_continuous_scale=[[0, '#006d2c'], [0.5, '#31a354'], [1, '#74c476']])
-     fig.update_layout(showlegend=False, height=400)
-     st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-     st.markdown("**Profit/Loss by Country**")
-     st.markdown("<small>Which routes are actually profitable?</small>", unsafe_allow_html=True)
-     
-     profit_data = country_financials[['Profit']].reset_index()
-     profit_data['Color'] = profit_data['Profit'].apply(lambda x: 'Profit' if x >= 0 else 'Loss')
-     
-     fig = px.bar(profit_data, x='PU_Country', y='Profit',
-                title='',
-                color='Color',
-                color_discrete_map={'Profit': '#2ca02c', 'Loss': '#d62728'})
-     fig.update_layout(showlegend=False, height=400)
-     st.plotly_chart(fig, use_container_width=True)
-    
-    # Detailed financial table with insights - only show countries with data
-    st.markdown("**Detailed Country Performance**")
-    
-    display_financials = country_financials.copy()
-    display_financials['Revenue'] = display_financials['Net_Revenue'].round(0).astype(int)
-    display_financials['Cost'] = display_financials['Total_Cost'].round(0).astype(int)
-    display_financials['Profit'] = display_financials['Profit'].round(0).astype(int)
-    display_financials['Status'] = display_financials['Profit'].apply(
-     lambda x: '🟢 Profitable' if x > 0 else '🔴 Loss-making'
-    )
-    display_financials = display_financials[['Revenue', 'Cost', 'Profit', 'Margin_Percent', 'Status']]
-    display_financials.columns = ['Revenue (€)', 'Cost (€)', 'Profit (€)', 'Margin (%)', 'Status']
-    
-    st.dataframe(display_financials, use_container_width=True)
-  
-  # Financial Insights with business meaning
-  st.markdown('<div class="insight-box">', unsafe_allow_html=True)
-  st.markdown("### 💰 Understanding the Financial Picture")
-  st.markdown(f"""
-  **Overall Financial Health:**
-  - **Revenue of €{total_revenue:,.0f}** from {total_services} shipments = €{total_revenue/total_services:.2f} per shipment
-  - **Costs of €{total_cost:,.0f}** = €{total_cost/total_services:.2f} per shipment
-  - **Profit margin {profit_margin:.1f}%** means: for every €100 earned, we keep €{profit_margin:.2f}
-  - {'Strong position' if profit_margin >= 20 else f'Need to improve by {20-profit_margin:.1f}% to reach healthy 20% target'}
-  
-  **Cost Structure Analysis:**
-  - **Pickup (PU)**: First-mile collection from customers
-  - **Shipping**: Main transportation between hubs
-  - **Manual (Man)**: Handling, sorting, documentation
-  - **Delivery (Del)**: Last-mile to final destination
-  
-  The largest cost component indicates where to focus efficiency improvements.
-  
-  **Country Profitability Insights:**
-  - **Green countries**: Profitable routes worth expanding
-  - **Red countries**: Review pricing or consider discontinuation
-  - **High-revenue doesn't always mean high-profit**: Check margins
-  - **Small volume countries**: May have high costs due to lack of scale
-  
-  **What This Means for Business:**
-  1. **Pricing**: Countries with negative margins need rate increases
-  2. **Volume**: Increase shipments in high-margin countries
-  3. **Costs**: Focus on reducing largest cost components
-  4. **Portfolio**: Consider dropping consistently unprofitable routes
-  5. **Investment**: Use profits from strong markets to develop weak ones
-  """)
-  st.markdown('</div>', unsafe_allow_html=True)
+    if 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
+        cost_df = tms_data['cost_sales']
+
+        # === Financial Overview ===
+        st.markdown('<p class="chart-title">Overall Financial Health</p>', unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        # Revenue vs Cost
+        with col1:
+            st.markdown("**Revenue vs Cost Analysis**")
+            st.markdown("<small>Shows total income, expenses, and resulting profit</small>", unsafe_allow_html=True)
+            profit = diff_total
+            financial_data = pd.DataFrame({
+                'Category': ['Revenue', 'Cost', 'Profit'],
+                'Amount': [total_revenue, total_cost, profit]
+            })
+            fig = px.bar(
+                financial_data, x='Category', y='Amount',
+                color='Category',
+                color_discrete_map={'Revenue': '#2ca02c', 'Cost': '#ff7f0e', 'Profit': '#2ca02c' if profit >= 0 else '#d62728'}
+            )
+            fig.update_layout(showlegend=False, height=350)
+            st.plotly_chart(fig, use_container_width=True)
+            st.write(f"**Profit Margin**: {profit_margin:.1f}%")
+            st.write(f"**Profit per shipment**: €{profit/total_services:.2f}")
+
+        # Cost Breakdown Pie
+        with col2:
+            st.markdown("**Where Money Goes - Cost Breakdown**")
+            st.markdown("<small>Understanding our expense structure</small>", unsafe_allow_html=True)
+            cost_components = {}
+            for col in ['PU_Cost', 'Ship_Cost', 'Man_Cost', 'Del_Cost']:
+                if col in cost_df.columns and cost_df[col].sum() > 0:
+                    cost_components[col.replace('_Cost', '')] = cost_df[col].sum()
+
+            if cost_components:
+                total_costs = sum(cost_components.values())
+                labels = [f"{k}<br>{v/total_costs*100:.1f}%" for k, v in cost_components.items()]
+                fig = px.pie(values=list(cost_components.values()), names=labels)
+                fig.update_traces(textposition='inside', textinfo='value+label')
+                fig.update_layout(height=350, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+                largest_cost = max(cost_components, key=cost_components.get)
+                st.write(f"**Biggest expense**: {largest_cost} ({cost_components[largest_cost]/total_costs*100:.1f}%)")
+
+        # Profit Waterfall
+        with col3:
+            st.markdown("**Profit Breakdown (Waterfall)**")
+            profit_breakdown = {
+                'Revenue': total_revenue,
+                'Pickup Cost': -cost_df['PU_Cost'].sum() if 'PU_Cost' in cost_df.columns else 0,
+                'Shipping Cost': -cost_df['Ship_Cost'].sum() if 'Ship_Cost' in cost_df.columns else 0,
+                'Manual Cost': -cost_df['Man_Cost'].sum() if 'Man_Cost' in cost_df.columns else 0,
+                'Delivery Cost': -cost_df['Del_Cost'].sum() if 'Del_Cost' in cost_df.columns else 0,
+                'Profit': total_revenue - total_cost
+            }
+            waterfall_data = pd.DataFrame(list(profit_breakdown.items()), columns=['Category', 'Value'])
+            fig = go.Figure(go.Waterfall(
+                name="Profit Breakdown",
+                orientation="v",
+                measure=["relative", "relative", "relative", "relative", "relative", "total"],
+                x=waterfall_data['Category'],
+                y=waterfall_data['Value'],
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+            ))
+            fig.update_layout(height=350)
+            st.plotly_chart(fig, use_container_width=True)
+
+        # === ROW 2: CUSTOMERS & PROFIT VS MARGIN ===
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if 'Account_Name' in cost_df.columns:
+                st.markdown("**Top 10 Customers by Profit**")
+                customer_profit = cost_df.groupby('Account_Name').agg({
+                    'Net_Revenue': 'sum',
+                    'Total_Cost': 'sum'
+                }).reset_index()
+                customer_profit['Profit'] = customer_profit['Net_Revenue'] - customer_profit['Total_Cost']
+                top_customers = customer_profit.sort_values('Profit', ascending=False).head(10)
+                fig = px.bar(
+                    top_customers, x='Account_Name', y='Profit',
+                    color='Profit', color_continuous_scale='Blues'
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            st.markdown("**Profit vs Margin % (Quadrant View)**")
+            if 'Gross_Percent' in cost_df.columns and 'Diff' in cost_df.columns:
+                scatter_data = cost_df[['Gross_Percent', 'Diff']].dropna()
+                scatter_data['Gross_Percent'] *= 100
+                fig = px.scatter(
+                    scatter_data,
+                    x='Gross_Percent',
+                    y='Diff',
+                    color=scatter_data['Diff'].apply(lambda x: 'Profit' if x >= 0 else 'Loss'),
+                    color_discrete_map={'Profit': '#2ca02c', 'Loss': '#d62728'},
+                    title='Profit vs Margin % by Shipment',
+                    labels={'Gross_Percent': 'Margin %', 'Diff': 'Profit (€)'}
+                )
+                fig.add_vline(x=20, line_dash="dash", line_color="gray")
+                fig.add_hline(y=0, line_dash="dash", line_color="gray")
+                fig.update_traces(marker=dict(size=6))
+                st.plotly_chart(fig, use_container_width=True)
+                profitable_orders = len(scatter_data[scatter_data['Diff'] > 0])
+                high_margin_orders = len(scatter_data[scatter_data['Gross_Percent'] >= 20])
+                st.write(f"**Profitable shipments**: {profitable_orders/len(scatter_data)*100:.1f}%")
+                st.write(f"**High margin (>20%)**: {high_margin_orders/len(scatter_data)*100:.1f}%")
+
+        # === ROW 3: ADVANCED VISUALS ===
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if 'Diff' in cost_df.columns:
+                st.markdown("**Profit Distribution per Shipment**")
+                profit_hist = cost_df['Diff'].dropna()
+                fig = px.histogram(
+                    profit_hist,
+                    nbins=30,
+                    title='',
+                    labels={'value': 'Profit (€)', 'count': 'Number of Shipments'}
+                )
+                fig.update_traces(marker_color='#3182bd')
+                st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            if {'Gross_Percent', 'Diff', 'Net_Revenue'}.issubset(cost_df.columns):
+                st.markdown("**Margin vs Profit (Bubble Size = Revenue)**")
+                bubble_data = cost_df[['Gross_Percent', 'Diff', 'Net_Revenue']].dropna()
+                bubble_data['Gross_Percent'] *= 100
+                fig = px.scatter(
+                    bubble_data,
+                    x='Gross_Percent',
+                    y='Diff',
+                    size='Net_Revenue',
+                    color='Diff',
+                    color_continuous_scale='RdYlGn',
+                    title='',
+                    labels={'Gross_Percent': 'Margin %', 'Diff': 'Profit (€)'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        # === ROW 4: COUNTRY FINANCIAL PERFORMANCE ===
+        if 'PU_Country' in cost_df.columns:
+            st.markdown('<p class="chart-title">Country-by-Country Financial Performance</p>', unsafe_allow_html=True)
+            country_financials = cost_df.groupby('PU_Country').agg({
+                'Net_Revenue': 'sum',
+                'Total_Cost': 'sum',
+                'Gross_Percent': 'mean'
+            }).round(2)
+            country_financials['Profit'] = country_financials['Net_Revenue'] - country_financials['Total_Cost']
+            country_financials['Margin_Percent'] = (country_financials['Gross_Percent'] * 100).round(1)
+            country_financials = country_financials.sort_values('Net_Revenue', ascending=False)
+
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.markdown("**Revenue by Country**")
+                revenue_data = country_financials.reset_index()
+                revenue_data = revenue_data[revenue_data['Net_Revenue'] > 0]
+                fig = px.bar(
+                    revenue_data, x='PU_Country', y='Net_Revenue',
+                    color='Net_Revenue',
+                    color_continuous_scale=[[0, '#006d2c'], [0.5, '#31a354'], [1, '#74c476']]
+                )
+                fig.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                st.markdown("**Profit/Loss by Country**")
+                profit_data = country_financials[['Profit']].reset_index()
+                profit_data['Color'] = profit_data['Profit'].apply(lambda x: 'Profit' if x >= 0 else 'Loss')
+                fig = px.bar(
+                    profit_data, x='PU_Country', y='Profit',
+                    color='Color',
+                    color_discrete_map={'Profit': '#2ca02c', 'Loss': '#d62728'}
+                )
+                fig.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("**Detailed Country Performance**")
+            display_financials = country_financials.copy()
+            display_financials['Revenue'] = display_financials['Net_Revenue'].round(0).astype(int)
+            display_financials['Cost'] = display_financials['Total_Cost'].round(0).astype(int)
+            display_financials['Profit'] = display_financials['Profit'].round(0).astype(int)
+            display_financials['Status'] = display_financials['Profit'].apply(lambda x: '🟢 Profitable' if x > 0 else '🔴 Loss-making')
+            display_financials = display_financials[['Revenue', 'Cost', 'Profit', 'Margin_Percent', 'Status']]
+            display_financials.columns = ['Revenue (€)', 'Cost (€)', 'Profit (€)', 'Margin (%)', 'Status']
+            st.dataframe(display_financials, use_container_width=True)
+
+        # === FINANCIAL INSIGHTS ===
+        st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+        st.markdown("### 💰 Understanding the Financial Picture")
+        st.markdown(f"""
+        **Overall Financial Health:**
+        - **Revenue of €{total_revenue:,.0f}** from {total_services} shipments = €{total_revenue/total_services:.2f} per shipment
+        - **Costs of €{total_cost:,.0f}** = €{total_cost/total_services:.2f} per shipment
+        - **Profit margin {profit_margin:.1f}%** means: for every €100 earned, we keep €{profit_margin:.2f}
+        - {'Strong position' if profit_margin >= 20 else f'Need to improve by {20-profit_margin:.1f}% to reach healthy 20% target'}
+
+        **Cost Structure Analysis:**
+        - **Pickup (PU)**: First-mile collection from customers
+        - **Shipping**: Main transportation between hubs
+        - **Manual (Man)**: Handling, sorting, documentation
+        - **Delivery (Del)**: Last-mile to final destination
+
+        The largest cost component indicates where to focus efficiency improvements.
+
+        **Country Profitability Insights:**
+        - **Green countries**: Profitable routes worth expanding
+        - **Red countries**: Review pricing or consider discontinuation
+        - **High-revenue doesn't always mean high-profit**: Check margins
+        - **Small volume countries**: May have high costs due to lack of scale
+
+        **What This Means for Business:**
+        1. **Pricing**: Countries with negative margins need rate increases
+        2. **Volume**: Increase shipments in high-margin countries
+        3. **Costs**: Focus on reducing largest cost components
+        4. **Portfolio**: Consider dropping consistently unprofitable routes
+        5. **Investment**: Use profits from strong markets to develop weak ones
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
+
  
  # TAB 5: Lane Network
  with tab5:
