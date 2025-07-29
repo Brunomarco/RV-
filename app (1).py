@@ -677,6 +677,38 @@ if tms_data is not None:
    
    # Add spacing
    st.markdown("<br>", unsafe_allow_html=True)
+   # === ROW 3: ADVANCED VISUALS ===
+   col1, col2 = st.columns(2)
+   
+   with col1:
+    if 'Diff' in cost_df.columns:
+        st.markdown("**Profit Distribution per Shipment**")
+        profit_hist = cost_df['Diff'].dropna()
+        fig = px.histogram(
+            profit_hist,
+            nbins=30,
+            title='',
+            labels={'value': 'Profit (€)', 'count': 'Number of Shipments'}
+        )
+        fig.update_traces(marker_color='#3182bd')
+        st.plotly_chart(fig, use_container_width=True)
+   
+   with col2:
+    if {'Gross_Percent', 'Diff', 'Net_Revenue'}.issubset(cost_df.columns):
+        st.markdown("**Margin vs Profit (Bubble Size = Revenue)**")
+        bubble_data = cost_df[['Gross_Percent', 'Diff', 'Net_Revenue']].dropna()
+        bubble_data['Gross_Percent'] *= 100
+        fig = px.scatter(
+            bubble_data,
+            x='Gross_Percent',
+            y='Diff',
+            size='Net_Revenue',
+            color='Diff',
+            color_continuous_scale='RdYlGn',
+            title='',
+            labels={'Gross_Percent': 'Margin %', 'Diff': 'Profit (€)'}
+        )
+        st.plotly_chart(fig, use_container_width=True)
    
    # Country Financial Performance - FIXED to only show countries with financial data
    if 'PU_Country' in cost_df.columns:
