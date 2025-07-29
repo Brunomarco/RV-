@@ -645,26 +645,26 @@ if tms_data is not None:
      st.write(f"**Biggest expense**: {largest_cost} ({cost_components[largest_cost]/total_costs*100:.1f}%)")
    
    with col3:
-    st.markdown("**Profit Breakdown (Waterfall)**")
-    profit_breakdown = {
-        'Revenue': total_revenue,
-        'Pickup Cost': -cost_df['PU_Cost'].sum() if 'PU_Cost' in cost_df.columns else 0,
-        'Shipping Cost': -cost_df['Ship_Cost'].sum() if 'Ship_Cost' in cost_df.columns else 0,
-        'Manual Cost': -cost_df['Man_Cost'].sum() if 'Man_Cost' in cost_df.columns else 0,
-        'Delivery Cost': -cost_df['Del_Cost'].sum() if 'Del_Cost' in cost_df.columns else 0,
-        'Profit': total_revenue - total_cost
-    }
-    waterfall_data = pd.DataFrame(list(profit_breakdown.items()), columns=['Category', 'Value'])
-    fig = go.Figure(go.Waterfall(
-        name="Profit Breakdown",
-        orientation="v",
-        measure=["relative", "relative", "relative", "relative", "relative", "total"],
-        x=waterfall_data['Category'],
-        y=waterfall_data['Value'],
-        connector={"line": {"color": "rgb(63, 63, 63)"}},
-    ))
-    fig.update_layout(height=350)
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown("**Profit Margin Distribution**")
+    st.markdown("<small>How profitable are individual shipments?</small>", unsafe_allow_html=True)
+    
+    if 'Gross_Percent' in cost_df.columns:
+     margin_data = cost_df['Gross_Percent'].dropna() * 100
+     
+     # Calculate margin statistics
+     profitable_orders = len(margin_data[margin_data > 0])
+     high_margin_orders = len(margin_data[margin_data >= 20])
+     
+     fig = px.histogram(
+      margin_data,
+      nbins=30,
+      title='',
+      labels={'value': 'Margin %', 'count': 'Number of Orders'}
+     )
+     fig.add_vline(x=20, line_dash="dash", line_color="green", annotation_text="Target 20%")
+     fig.update_traces(marker_color='lightcoral')
+     fig.update_layout(height=350)
+     st.plotly_chart(fig, use_container_width=True)
 
      # Additional view of margin distribution
      box_fig = px.box(margin_data, orientation='h', labels={'value': 'Margin %'})
@@ -677,38 +677,6 @@ if tms_data is not None:
    
    # Add spacing
    st.markdown("<br>", unsafe_allow_html=True)
-   # === ROW 3: ADVANCED VISUALS ===
-   col1, col2 = st.columns(2)
-   
-   with col1:
-    if 'Diff' in cost_df.columns:
-        st.markdown("**Profit Distribution per Shipment**")
-        profit_hist = cost_df['Diff'].dropna()
-        fig = px.histogram(
-            profit_hist,
-            nbins=30,
-            title='',
-            labels={'value': 'Profit (€)', 'count': 'Number of Shipments'}
-        )
-        fig.update_traces(marker_color='#3182bd')
-        st.plotly_chart(fig, use_container_width=True)
-   
-   with col2:
-    if {'Gross_Percent', 'Diff', 'Net_Revenue'}.issubset(cost_df.columns):
-        st.markdown("**Margin vs Profit (Bubble Size = Revenue)**")
-        bubble_data = cost_df[['Gross_Percent', 'Diff', 'Net_Revenue']].dropna()
-        bubble_data['Gross_Percent'] *= 100
-        fig = px.scatter(
-            bubble_data,
-            x='Gross_Percent',
-            y='Diff',
-            size='Net_Revenue',
-            color='Diff',
-            color_continuous_scale='RdYlGn',
-            title='',
-            labels={'Gross_Percent': 'Margin %', 'Diff': 'Profit (€)'}
-        )
-        st.plotly_chart(fig, use_container_width=True)
    
    # Country Financial Performance - FIXED to only show countries with financial data
    if 'PU_Country' in cost_df.columns:
