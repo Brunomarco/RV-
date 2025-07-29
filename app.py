@@ -209,6 +209,7 @@ total_orders = 0
 total_revenue = 0
 total_cost = 0
 profit_margin = 0
+diff_total = 0
 total_services = 0
 
 if tms_data is not None:
@@ -224,14 +225,22 @@ if tms_data is not None:
    on_time_orders = len(status_series[status_series == 'ON TIME'])
    avg_otp = (on_time_orders / total_orders * 100) if total_orders > 0 else 0
  
- # Financial metrics - Fixed to only use rows with actual financial data
- if 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
-  cost_df = tms_data['cost_sales']
-  if 'Net_Revenue' in cost_df.columns:
-   total_revenue = cost_df['Net_Revenue'].sum()
-  if 'Total_Cost' in cost_df.columns:
-   total_cost = cost_df['Total_Cost'].sum()
-  profit_margin = ((total_revenue - total_cost) / total_revenue * 100) if total_revenue > 0 else 0
+# Financial metrics - use only billed orders and ignore summary rows
+if 'cost_sales' in tms_data and not tms_data['cost_sales'].empty:
+ cost_df = tms_data['cost_sales']
+ # work only with billed orders
+ if 'Status' in cost_df.columns:
+  cost_df = cost_df[cost_df['Status'].str.contains('bill', case=False, na=False)]
+ if 'Order_Num' in cost_df.columns:
+  cost_df = cost_df[cost_df['Order_Num'].notna()]
+
+ if 'Net_Revenue' in cost_df.columns:
+  total_revenue = cost_df['Net_Revenue'].sum()
+ if 'Total_Cost' in cost_df.columns:
+  total_cost = cost_df['Total_Cost'].sum()
+
+ diff_total = cost_df['Diff'].sum() if 'Diff' in cost_df.columns else total_revenue - total_cost
+ profit_margin = (diff_total / total_revenue * 100) if total_revenue > 0 else 0
 
 # Create tabs for each sheet
 if tms_data is not None:
@@ -534,52 +543,6 @@ if tms_data is not None:
       )
       qc_detail_df = qc_detail_df.sort_values('Count', ascending=False)
       st.dataframe(qc_detail_df, hide_index=True, use_container_width=True)
-   
-   # Statistical Performance Summary
-   st.markdown('<p class="chart-title">Performance Statistics Overview</p>', unsafe_allow_html=True)
-   
-   col1, col2 = st.columns(2)
-   
-   with col1:
-    # Create performance zones summary
-    if 'Time_Diff' in otp_df.columns:
-     time_diff_clean = pd.to_numeric(otp_df['Time_Diff'], errors='coerce').dropna()
-     
-     if len(time_diff_clean) > 0:
-      early_deliveries = len(time_diff_clean[time_diff_clean < -0.5])
-      on_time = len(time_diff_clean[(time_diff_clean >= -0.5) & (time_diff_clean <= 0.5)])
-      late = len(time_diff_clean[time_diff_clean > 0.5])
-      
-      zone_data = pd.DataFrame({
-       'Delivery Zone': ['Very Early (>0.5d)', 'On-Time Window', 'Late (>0.5d)'],
-       'Count': [early_deliveries, on_time, late],
-       'Percentage': [
-        f"{early_deliveries/len(time_diff_clean)*100:.1f}%",
-        f"{on_time/len(time_diff_clean)*100:.1f}%",
-        f"{late/len(time_diff_clean)*100:.1f}%"
-       ],
-       'Business Impact': [
-        'May cause storage issues',
-        'Ideal performance',
-        'Customer dissatisfaction'
-       ]
-      })
-      st.dataframe(zone_data, hide_index=True, use_container_width=True)
-   
-   with col2:
-    # Key timing insights
-    if 'Time_Diff' in otp_df.columns and len(time_diff_clean) > 0:
-     st.markdown("**Timing Performance Insights:**")
-     avg_delay = time_diff_clean.mean()
-     median_delay = time_diff_clean.median()
-     worst_late = time_diff_clean.max()
-     worst_early = time_diff_clean.min()
-     
-     st.write(f"- **Average Performance**: {'Early' if avg_delay < 0 else 'Late'} by {abs(avg_delay):.1f} days")
-     st.write(f"- **Typical Delivery**: {'Early' if median_delay < 0 else 'Late'} by {abs(median_delay):.1f} days")
-     st.write(f"- **Worst Late Case**: {worst_late:.1f} days late")
-     st.write(f"- **Most Early**: {abs(worst_early):.1f} days early")
-     st.write(f"- **Consistency**: Standard deviation of {time_diff_clean.std():.1f} days")
   
   # OTP Detailed Insights
   st.markdown('<div class="insight-box">', unsafe_allow_html=True)
@@ -633,7 +596,7 @@ if tms_data is not None:
     st.markdown("**Revenue vs Cost Analysis**")
     st.markdown("<small>Shows total income, expenses, and resulting profit</small>", unsafe_allow_html=True)
     
-    profit = total_revenue - total_cost
+    profit = diff_total
     financial_data = pd.DataFrame({
      'Category': ['Revenue', 'Cost', 'Profit'],
      'Amount': [total_revenue, total_cost, profit]
@@ -692,14 +655,21 @@ if tms_data is not None:
      profitable_orders = len(margin_data[margin_data > 0])
      high_margin_orders = len(margin_data[margin_data >= 20])
      
-     fig = px.histogram(margin_data, nbins=30,
-                      title='',
-                      labels={'value': 'Margin %', 'count': 'Number of Orders'})
-     fig.add_vline(x=20, line_dash="dash", line_color="green", 
-                 annotation_text="Target 20%")
+     fig = px.histogram(
+      margin_data,
+      nbins=30,
+      title='',
+      labels={'value': 'Margin %', 'count': 'Number of Orders'}
+     )
+     fig.add_vline(x=20, line_dash="dash", line_color="green", annotation_text="Target 20%")
      fig.update_traces(marker_color='lightcoral')
      fig.update_layout(height=350)
      st.plotly_chart(fig, use_container_width=True)
+
+     # Additional view of margin distribution
+     box_fig = px.box(margin_data, orientation='h', labels={'value': 'Margin %'})
+     box_fig.update_layout(height=200, showlegend=False, title='')
+     st.plotly_chart(box_fig, use_container_width=True)
     
      # Margin insights
      st.write(f"**Profitable orders**: {profitable_orders/len(margin_data)*100:.1f}%")
